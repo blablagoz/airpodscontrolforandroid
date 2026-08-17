@@ -110,21 +110,26 @@ class AirPodsMonitorService : Service() {
 
         startForeground(NOTIFICATION_ID, notification(getString(R.string.notification_monitoring)))
         scanner.start(lowPower = true) { newState ->
-            AirPodsRuntime.update { current ->
+            AirPodsRuntime.update { old ->
                 newState.copy(
                     monitorRunning = true,
-                    leftBattery = newState.leftBattery ?: current.leftBattery,
-                    rightBattery = newState.rightBattery ?: current.rightBattery,
-                    caseBattery = newState.caseBattery ?: current.caseBattery,
-                    leftCharging = newState.leftCharging ?: current.leftCharging,
-                    rightCharging = newState.rightCharging ?: current.rightCharging,
-                    caseCharging = newState.caseCharging ?: current.caseCharging
+                    overlayEnabled = old.overlayEnabled,
+                    aclConnected = old.aclConnected,
+                    aclTransport = old.aclTransport,
+                    a2dpConnected = old.a2dpConnected,
+                    headsetConnected = old.headsetConnected,
+                    discoveredUuids = old.discoveredUuids ?: newState.discoveredUuids,
+                    phase = when {
+                        old.a2dpConnected || old.headsetConnected || old.aclConnected -> ConnectionPhase.CONNECTED
+                        else -> newState.phase
+                    }
                 )
             }
+            val current = AirPodsRuntime.state.value
             getSystemService(NotificationManager::class.java)
-                .notify(NOTIFICATION_ID, notification(notificationText(AirPodsRuntime.state.value)))
-            if (newState.phase == ConnectionPhase.NEARBY && android.provider.Settings.canDrawOverlays(this)) {
-                AirPodsPopupOverlay.show(this, AirPodsRuntime.state.value)
+                .notify(NOTIFICATION_ID, notification(notificationText(current)))
+            if (newState.phase == ConnectionPhase.NEARBY && newState.lidOpen == true && android.provider.Settings.canDrawOverlays(this)) {
+                AirPodsPopupOverlay.show(this, current)
             }
         }
         refreshProfileStates()

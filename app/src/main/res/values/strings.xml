@@ -1,24 +1,30 @@
 <resources>
     <string name="app_name">AirPods Control</string>
-    <string name="subtitle">Samsung / rootless v0.4</string>
+    <string name="subtitle">Android companion · rootless v0.5</string>
     <string name="control_center">Control Center</string>
     <string name="start_monitor">Start AirPods monitor</string>
     <string name="stop_monitor">Stop AirPods monitor</string>
     <string name="overlay_on">Popup permission enabled ✓</string>
-    <string name="overlay_open">Enable Apple-style popup</string>
+    <string name="overlay_open">Enable case-open popup</string>
     <string name="copy_diagnostics">Copy diagnostics</string>
     <string name="diagnostics_copied">Diagnostics copied to clipboard</string>
-    <string name="protocol_note">Advanced ANC / Transparency remains isolated from the BLE monitor. If Android blocks the control channel, battery and popup monitoring keep working.</string>
+    <string name="protocol_note">Public AirPods BLE broadcasts are decoded locally for battery, charging and case state. Nearby AirPods can be visible even when they are not paired to this phone.</string>
     <string name="diagnostics">Diagnostics</string>
     <string name="paired">Paired</string>
+    <string name="detected_model">Detected model</string>
     <string name="status">Status</string>
     <string name="raw_apple_ble">Raw Apple BLE</string>
     <string name="refresh_permissions">Refresh permission state</string>
-    <string name="rootless_note">This build does not use root. Unsupported Apple protocol features are not faked; controls stay disabled until device support is verified.</string>
+    <string name="rootless_note">Rootless build. BLE battery data is passive; advanced settings depend on Android Bluetooth-stack support.</string>
     <string name="left">Left</string>
     <string name="right">Right</string>
     <string name="case_label">Case</string>
     <string name="nearby">Nearby</string>
+    <string name="nearby_devices">Nearby AirPods</string>
+    <string name="nearby_devices_hint">Live Apple proximity broadcasts</string>
+    <string name="no_nearby_airpods">No AirPods proximity broadcast detected yet. Open the case near the phone.</string>
+    <string name="case_open">Case open</string>
+    <string name="case_closed">Case closed</string>
     <string name="searching">Searching…</string>
     <string name="connected">Connected</string>
     <string name="check_required">Check required</string>
@@ -30,7 +36,7 @@
     <string name="language">Language</string>
     <string name="language_system">System language</string>
     <string name="language_changed">Language changed</string>
-    <string name="airpods_default">AirPods Pro 2</string>
+    <string name="airpods_default">AirPods</string>
     <string name="bluetooth_permission_denied">Bluetooth permission denied</string>
     <string name="msg_nearby_permission_required">Nearby devices permission is required</string>
     <string name="msg_bluetooth_off">Bluetooth is off</string>
@@ -50,5 +56,7 @@
     <string name="notification_monitoring">AirPods monitoring</string>
     <string name="notification_nearby">AirPods nearby</string>
     <string name="popup_nearby">Nearby</string>
-    <string name="diagnostic_version">AirPods Control v0.4</string>
-<string name="msg_non_airpods_apple_frame">Non-AirPods Apple BLE frame ignored</string><string name="msg_airpods_candidate">AirPods proximity candidate detected</string></resources>
+    <string name="diagnostic_version">AirPods Control v0.5</string>
+    <string name="msg_non_airpods_apple_frame">Non-AirPods Apple BLE frame ignored</string>
+    <string name="msg_airpods_candidate">AirPods battery broadcast decoded</string>
+</resources>

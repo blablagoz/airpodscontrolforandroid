@@ -28,16 +28,16 @@ object AirPodsPopupOverlay {
             orientation = LinearLayout.VERTICAL
             setPadding((20*density).toInt(), (16*density).toInt(), (20*density).toInt(), (16*density).toInt())
             background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(0xF7FFFFFF.toInt())
+                setColor(0xFAFFFEFF.toInt())
                 cornerRadius = 28*density
-                setStroke((1*density).toInt(), 0x16000000)
+                setStroke((1*density).toInt(), 0x339A78E8)
             }
             elevation = 12*density
         }
         box.addView(TextView(context).apply {
             text = state.pairedAirPodsName ?: context.getString(R.string.airpods_default)
             textSize = 19f
-            setTextColor(0xFF111111.toInt())
+            setTextColor(0xFF151318.toInt())
             typeface = android.graphics.Typeface.DEFAULT_BOLD
         })
         box.addView(TextView(context).apply {
@@ -48,7 +48,7 @@ object AirPodsPopupOverlay {
             )
             text = if (bits.isEmpty()) context.getString(R.string.popup_nearby) else bits.joinToString("   ")
             textSize = 14f
-            setTextColor(0xFF555555.toInt())
+            setTextColor(0xFF77727F.toInt())
             setPadding(0, (8*density).toInt(), 0, 0)
         })
 
