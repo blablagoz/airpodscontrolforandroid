@@ -5,23 +5,27 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Handler
-import android.os.Looper
 import androidx.core.content.ContextCompat
+import com.avni.airpodscontrol.R
 import com.avni.airpodscontrol.model.AirPodsState
 import com.avni.airpodscontrol.model.ConnectionPhase
 
+/**
+ * Rootless BLE monitor.
+ *
+ * Important: we intentionally do NOT use a manufacturer-data ScanFilter here.
+ * Some Samsung/One UI + AirPods Pro 2 firmware combinations do not deliver the
+ * expected callback when the filter is applied at Android's Bluetooth stack.
+ * We scan broadly, then inspect Apple 0x004C manufacturer frames in-process.
+ */
 class AirPodsScanner(private val context: Context) {
     private val manager = context.getSystemService(BluetoothManager::class.java)
     private val adapter: BluetoothAdapter? get() = manager?.adapter
-    private val mainHandler = Handler(Looper.getMainLooper())
     private var callback: ScanCallback? = null
-    private var restartRunnable: Runnable? = null
 
     fun hasPermissions(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
@@ -38,29 +42,54 @@ class AirPodsScanner(private val context: Context) {
     @SuppressLint("MissingPermission")
     fun start(lowPower: Boolean = false, onState: (AirPodsState) -> Unit) {
         if (!hasPermissions()) {
-            onState(AirPodsState(phase = ConnectionPhase.ERROR, message = "Yakındaki cihazlar izni gerekli"))
+            onState(AirPodsState(phase = ConnectionPhase.ERROR, message = context.getString(R.string.msg_nearby_permission_required)))
             return
         }
         val bt = adapter
         if (bt == null || !bt.isEnabled) {
-            onState(AirPodsState(phase = ConnectionPhase.ERROR, bluetoothEnabled = false, message = "Bluetooth kapalı"))
+            onState(AirPodsState(phase = ConnectionPhase.ERROR, bluetoothEnabled = false, message = context.getString(R.string.msg_bluetooth_off)))
             return
         }
         stop()
         val paired = pairedAirPods()
         val ble = bt.bluetoothLeScanner ?: run {
-            onState(AirPodsState(phase = ConnectionPhase.ERROR, bluetoothEnabled = true, message = "BLE tarayıcı kullanılamıyor"))
+            onState(AirPodsState(phase = ConnectionPhase.ERROR, bluetoothEnabled = true, message = context.getString(R.string.msg_ble_unavailable)))
             return
         }
 
+        var lastAppleRaw: String? = null
         val cb = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val record = result.scanRecord ?: return
                 val appleData = record.getManufacturerSpecificData(APPLE_COMPANY_ID) ?: return
                 val parsed = AirPodsPacketParser.parse(appleData)
-                if (!parsed.isLikelyAirPods) return
+                val raw = parsed.rawHex
+                lastAppleRaw = raw
+
                 val deviceName = runCatching { result.device.name }.getOrNull() ?: record.deviceName
                 val deviceAddress = runCatching { result.device.address }.getOrNull()
+
+                // Keep diagnostics alive even when an unknown Apple frame is seen.
+                // This is essential for adapting to new AirPods firmware layouts.
+                if (!parsed.isLikelyAirPods) {
+                    onState(
+                        AirPodsState(
+                            phase = ConnectionPhase.SCANNING,
+                            bluetoothEnabled = true,
+                            pairedAirPodsName = paired?.first,
+                            pairedAirPodsAddress = paired?.second,
+                            lastSeenName = deviceName,
+                            lastSeenAddress = deviceAddress,
+                            rssi = result.rssi,
+                            rawManufacturerData = raw,
+                            lastSeenAt = System.currentTimeMillis(),
+                            monitorRunning = true,
+                            message = context.getString(R.string.msg_apple_frame_seen)
+                        )
+                    )
+                    return
+                }
+
                 onState(
                     AirPodsState(
                         phase = ConnectionPhase.NEARBY,
@@ -73,10 +102,13 @@ class AirPodsScanner(private val context: Context) {
                         leftBattery = parsed.leftBattery,
                         rightBattery = parsed.rightBattery,
                         caseBattery = parsed.caseBattery,
-                        rawManufacturerData = parsed.rawHex,
+                        leftCharging = parsed.leftCharging,
+                        rightCharging = parsed.rightCharging,
+                        caseCharging = parsed.caseCharging,
+                        rawManufacturerData = raw,
                         lastSeenAt = System.currentTimeMillis(),
                         monitorRunning = true,
-                        message = "AirPods yakında"
+                        message = context.getString(R.string.msg_airpods_nearby)
                     )
                 )
             }
@@ -88,6 +120,7 @@ class AirPodsScanner(private val context: Context) {
                         bluetoothEnabled = true,
                         pairedAirPodsName = paired?.first,
                         pairedAirPodsAddress = paired?.second,
+                        rawManufacturerData = lastAppleRaw,
                         monitorRunning = false,
                         message = scanErrorText(errorCode)
                     )
@@ -96,9 +129,6 @@ class AirPodsScanner(private val context: Context) {
         }
         callback = cb
 
-        val filter = ScanFilter.Builder()
-            .setManufacturerData(APPLE_COMPANY_ID, byteArrayOf(0x07), byteArrayOf(0xFF.toByte()))
-            .build()
         val settings = ScanSettings.Builder()
             .setScanMode(if (lowPower) ScanSettings.SCAN_MODE_BALANCED else ScanSettings.SCAN_MODE_LOW_LATENCY)
             .setReportDelay(0)
@@ -111,27 +141,26 @@ class AirPodsScanner(private val context: Context) {
                 pairedAirPodsName = paired?.first,
                 pairedAirPodsAddress = paired?.second,
                 monitorRunning = true,
-                message = "AirPods aranıyor…"
+                message = context.getString(R.string.msg_searching)
             )
         )
-        ble.startScan(listOf(filter), settings, cb)
+        // No ScanFilter: filtering happens in this class after callbacks arrive.
+        ble.startScan(null, settings, cb)
     }
 
     @SuppressLint("MissingPermission")
     fun stop() {
-        restartRunnable?.let(mainHandler::removeCallbacks)
-        restartRunnable = null
         val cb = callback ?: return
         if (hasPermissions()) runCatching { adapter?.bluetoothLeScanner?.stopScan(cb) }
         callback = null
     }
 
     private fun scanErrorText(code: Int) = when (code) {
-        ScanCallback.SCAN_FAILED_ALREADY_STARTED -> "Tarama zaten çalışıyor"
-        ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED -> "Bluetooth tarama kaydı başarısız"
-        ScanCallback.SCAN_FAILED_INTERNAL_ERROR -> "Bluetooth iç hatası"
-        ScanCallback.SCAN_FAILED_FEATURE_UNSUPPORTED -> "BLE tarama desteklenmiyor"
-        else -> "BLE tarama hatası: $code"
+        ScanCallback.SCAN_FAILED_ALREADY_STARTED -> context.getString(R.string.msg_scan_already_started)
+        ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED -> context.getString(R.string.msg_scan_registration_failed)
+        ScanCallback.SCAN_FAILED_INTERNAL_ERROR -> context.getString(R.string.msg_scan_internal_error)
+        ScanCallback.SCAN_FAILED_FEATURE_UNSUPPORTED -> context.getString(R.string.msg_scan_unsupported)
+        else -> context.getString(R.string.msg_scan_error, code)
     }
 
     companion object { const val APPLE_COMPANY_ID = 0x004C }

@@ -37,11 +37,11 @@ class AirPodsMonitorService : Service() {
                         pairedAirPodsName = it.pairedAirPodsName ?: device.name,
                         pairedAirPodsAddress = it.pairedAirPodsAddress ?: device.address,
                         monitorRunning = true,
-                        message = "AirPods Bluetooth bağlı"
+                        message = getString(R.string.msg_bt_connected)
                     )
                 }
                 BluetoothDevice.ACTION_ACL_DISCONNECTED -> AirPodsRuntime.update {
-                    it.copy(phase = ConnectionPhase.SCANNING, monitorRunning = true, message = "AirPods bağlantısı kesildi; izleme sürüyor")
+                    it.copy(phase = ConnectionPhase.SCANNING, monitorRunning = true, message = getString(R.string.msg_bt_disconnected))
                 }
             }
         }
@@ -55,7 +55,7 @@ class AirPodsMonitorService : Service() {
             addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
             addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
         })
-        startForeground(NOTIFICATION_ID, notification("AirPods izleniyor"))
+        startForeground(NOTIFICATION_ID, notification(getString(R.string.notification_monitoring)))
         scanner.start(lowPower = true) { newState ->
             AirPodsRuntime.replace(newState.copy(monitorRunning = true))
             getSystemService(NotificationManager::class.java)
@@ -71,7 +71,7 @@ class AirPodsMonitorService : Service() {
     override fun onDestroy() {
         scanner.stop()
         runCatching { unregisterReceiver(aclReceiver) }
-        AirPodsRuntime.update { it.copy(monitorRunning = false, phase = ConnectionPhase.IDLE, message = "Monitör kapalı") }
+        AirPodsRuntime.update { it.copy(monitorRunning = false, phase = ConnectionPhase.IDLE, message = getString(R.string.msg_monitor_off)) }
         AirPodsPopupOverlay.hide(this)
         super.onDestroy()
     }
@@ -80,13 +80,13 @@ class AirPodsMonitorService : Service() {
 
     private fun createChannel() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, "AirPods monitörü", NotificationManager.IMPORTANCE_LOW)
+            NotificationChannel(CHANNEL_ID, getString(R.string.notification_channel), NotificationManager.IMPORTANCE_LOW)
         )
     }
 
     private fun notification(text: String) = NotificationCompat.Builder(this, CHANNEL_ID)
         .setSmallIcon(R.drawable.ic_airpods)
-        .setContentTitle("AirPods Control")
+        .setContentTitle(getString(R.string.app_name))
         .setContentText(text)
         .setOngoing(true)
         .setOnlyAlertOnce(true)
@@ -94,14 +94,14 @@ class AirPodsMonitorService : Service() {
 
     private fun notificationText(state: com.avni.airpodscontrol.model.AirPodsState): String {
         val batteries = listOfNotNull(
-            state.leftBattery?.let { "L $it%" },
-            state.rightBattery?.let { "R $it%" },
-            state.caseBattery?.let { "Kutu $it%" }
+            state.leftBattery?.let { "${getString(R.string.left)} $it%" },
+            state.rightBattery?.let { "${getString(R.string.right)} $it%" },
+            state.caseBattery?.let { "${getString(R.string.case_label)} $it%" }
         ).joinToString(" · ")
         return when {
             state.phase == ConnectionPhase.NEARBY && batteries.isNotBlank() -> batteries
-            state.phase == ConnectionPhase.NEARBY -> "AirPods yakında"
-            else -> "AirPods izleniyor"
+            state.phase == ConnectionPhase.NEARBY -> getString(R.string.notification_nearby)
+            else -> getString(R.string.notification_monitoring)
         }
     }
 

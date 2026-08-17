@@ -1,8 +1,8 @@
-# AirPods Control for Samsung — rootless v0.2
+# AirPods Control for Samsung — rootless v0.2.1
 
 Özgün, rootsuz Android prototipi. Hedef cihaz: Samsung Galaxy S24 Ultra + AirPods Pro 2.
 
-## v0.2 neler yapar?
+## v0.2.1 neler yapar?
 - Apple manufacturer BLE (0x004C) AirPods proximity paketlerini filtreler.
 - Sol/sağ/kutu pil değerlerini konservatif parser ile gösterir; tanımadığı pakette değer uydurmaz.
 - Foreground service ile ekran kapansa da izlemeyi sürdürebilir.
@@ -32,4 +32,10 @@ LibrePods ve açık protokol araştırmaları mimari/protokol referansı olarak 
 7. `Tanılama verisini kopyala` ile cihaz/Android sürümü ve gerçek BLE paketini tek dokunuşla panoya al; sonraki protokol testinde bu veri kullanılabilir.
 
 ## Teknik sınır
-Bazı Android sürümleri/üreticileri Apple'ın L2CAP davranışı ile Android Bluetooth stack'i arasındaki uyumsuzluk nedeniyle AACP bağlantısını rootsuz açamayabilir. Bu nedenle v0.2, BLE/popup/pil işlevlerini gelişmiş AACP kontrol katmanından ayırır.
+Bazı Android sürümleri/üreticileri Apple'ın L2CAP davranışı ile Android Bluetooth stack'i arasındaki uyumsuzluk nedeniyle AACP bağlantısını rootsuz açamayabilir. Bu nedenle v0.2.1, BLE/popup/pil işlevlerini gelişmiş AACP kontrol katmanından ayırır.
+
+
+## v0.2.1
+- Rootless BLE scan now filters Apple frames inside the app instead of at Android stack level.
+- New AirPods-style launcher icon.
+- Languages: Turkish, English, German, French, Spanish, Italian, Hindi; selectable in-app.

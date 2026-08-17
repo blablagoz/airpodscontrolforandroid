@@ -20,5 +20,5 @@ data class AirPodsState(
     val lastSeenAt: Long? = null,
     val monitorRunning: Boolean = false,
     val overlayEnabled: Boolean = false,
-    val message: String = "Hazır"
+    val message: String = ""
 )

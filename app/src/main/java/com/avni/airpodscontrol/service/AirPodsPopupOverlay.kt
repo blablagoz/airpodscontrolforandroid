@@ -6,11 +6,11 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
-import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.avni.airpodscontrol.R
 import com.avni.airpodscontrol.model.AirPodsState
 
 object AirPodsPopupOverlay {
@@ -35,18 +35,18 @@ object AirPodsPopupOverlay {
             elevation = 12*density
         }
         box.addView(TextView(context).apply {
-            text = state.pairedAirPodsName ?: "AirPods Pro"
+            text = state.pairedAirPodsName ?: context.getString(R.string.airpods_default)
             textSize = 19f
             setTextColor(0xFF111111.toInt())
             typeface = android.graphics.Typeface.DEFAULT_BOLD
         })
         box.addView(TextView(context).apply {
             val bits = listOfNotNull(
-                state.leftBattery?.let { "Sol $it%" },
-                state.rightBattery?.let { "Sağ $it%" },
-                state.caseBattery?.let { "Kutu $it%" }
+                state.leftBattery?.let { "${context.getString(R.string.left)} $it%" },
+                state.rightBattery?.let { "${context.getString(R.string.right)} $it%" },
+                state.caseBattery?.let { "${context.getString(R.string.case_label)} $it%" }
             )
-            text = if (bits.isEmpty()) "Yakında" else bits.joinToString("   ")
+            text = if (bits.isEmpty()) context.getString(R.string.popup_nearby) else bits.joinToString("   ")
             textSize = 14f
             setTextColor(0xFF555555.toInt())
             setPadding(0, (8*density).toInt(), 0, 0)

@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,19 +18,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.lifecycleScope
 import com.avni.airpodscontrol.bluetooth.AirPodsScanner
 import com.avni.airpodscontrol.model.AirPodsState
 import com.avni.airpodscontrol.model.ConnectionPhase
 import com.avni.airpodscontrol.service.AirPodsMonitorService
 import com.avni.airpodscontrol.service.AirPodsRuntime
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var scanner: AirPodsScanner
@@ -45,7 +46,7 @@ class MainActivity : ComponentActivity() {
                     ActivityResultContracts.RequestMultiplePermissions()
                 ) { result ->
                     if (result.values.all { it }) startMonitor()
-                    else AirPodsRuntime.update { it.copy(message = "Bluetooth izni verilmedi") }
+                    else AirPodsRuntime.update { it.copy(message = getString(R.string.bluetooth_permission_denied)) }
                 }
                 val notificationPermission = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission()
@@ -70,10 +71,11 @@ class MainActivity : ComponentActivity() {
                     },
                     onCopyDiagnostics = {
                         val diagnostic = buildString {
-                            appendLine("AirPods Control v0.2")
+                            appendLine(getString(R.string.diagnostic_version))
                             appendLine("Model: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
                             appendLine("Android: ${android.os.Build.VERSION.RELEASE} / API ${android.os.Build.VERSION.SDK_INT}")
                             appendLine("Paired: ${state.pairedAirPodsName} ${state.pairedAirPodsAddress}")
+                            appendLine("Last seen: ${state.lastSeenName} ${state.lastSeenAddress}")
                             appendLine("RSSI: ${state.rssi}")
                             appendLine("L/R/Case: ${state.leftBattery}/${state.rightBattery}/${state.caseBattery}")
                             appendLine("Raw: ${state.rawManufacturerData ?: "—"}")
@@ -81,10 +83,15 @@ class MainActivity : ComponentActivity() {
                         }
                         val cm = getSystemService(android.content.ClipboardManager::class.java)
                         cm.setPrimaryClip(android.content.ClipData.newPlainText("AirPods diagnostics", diagnostic))
-                        AirPodsRuntime.update { it.copy(message = "Tanılama panoya kopyalandı") }
+                        AirPodsRuntime.update { it.copy(message = getString(R.string.diagnostics_copied)) }
                     },
                     onRefreshOverlayState = {
                         AirPodsRuntime.update { it.copy(overlayEnabled = Settings.canDrawOverlays(this@MainActivity)) }
+                    },
+                    onLanguage = { languageTag ->
+                        val locales = if (languageTag.isBlank()) LocaleListCompat.getEmptyLocaleList()
+                        else LocaleListCompat.forLanguageTags(languageTag)
+                        AppCompatDelegate.setApplicationLocales(locales)
                     }
                 )
             }
@@ -105,13 +112,26 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private data class LanguageChoice(val tag: String, val label: String)
+private val languages = listOf(
+    LanguageChoice("", "System"),
+    LanguageChoice("tr", "Türkçe"),
+    LanguageChoice("en", "English"),
+    LanguageChoice("de", "Deutsch"),
+    LanguageChoice("fr", "Français"),
+    LanguageChoice("es", "Español"),
+    LanguageChoice("it", "Italiano"),
+    LanguageChoice("hi", "हिन्दी")
+)
+
 @Composable
 private fun AirPodsScreen(
     state: AirPodsState,
     onMonitor: () -> Unit,
     onOverlay: () -> Unit,
     onCopyDiagnostics: () -> Unit,
-    onRefreshOverlayState: () -> Unit
+    onRefreshOverlayState: () -> Unit,
+    onLanguage: (String) -> Unit
 ) {
     Surface(Modifier.fillMaxSize(), color = Color(0xFFF5F5F7)) {
         Column(
@@ -120,8 +140,8 @@ private fun AirPodsScreen(
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text("AirPods Control", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    Text("Samsung / rootsuz v0.2", color = Color.Gray, fontSize = 12.sp)
+                    Text(stringResource(R.string.app_name), fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.subtitle), color = Color.Gray, fontSize = 12.sp)
                 }
                 StatusDot(state.phase)
             }
@@ -130,48 +150,76 @@ private fun AirPodsScreen(
             Spacer(Modifier.height(14.dp))
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.padding(18.dp)) {
-                    Text("Kontrol Merkezi", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text(stringResource(R.string.control_center), fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Spacer(Modifier.height(12.dp))
                     Button(onClick = onMonitor, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
-                        Text(if (state.monitorRunning) "AirPods monitörünü durdur" else "AirPods monitörünü başlat")
+                        Text(if (state.monitorRunning) stringResource(R.string.stop_monitor) else stringResource(R.string.start_monitor))
                     }
                     Spacer(Modifier.height(10.dp))
                     OutlinedButton(onClick = onOverlay, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(16.dp)) {
-                        Text(if (state.overlayEnabled) "Popup izni açık ✓" else "Apple tarzı popup iznini aç")
+                        Text(if (state.overlayEnabled) stringResource(R.string.overlay_on) else stringResource(R.string.overlay_open))
                     }
                     Spacer(Modifier.height(10.dp))
                     OutlinedButton(onClick = onCopyDiagnostics, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(16.dp)) {
-                        Text("Tanılama verisini kopyala")
+                        Text(stringResource(R.string.copy_diagnostics))
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text(
-                        "Gelişmiş ANC / Transparency protokol katmanı temel BLE monitöründen ayrı tutuluyor. Android stack izin vermediğinde uygulamanın pil ve popup kısmı etkilenmez.",
-                        color = Color.Gray,
-                        fontSize = 12.sp
-                    )
+                    Text(stringResource(R.string.protocol_note), color = Color.Gray, fontSize = 12.sp)
                 }
             }
             Spacer(Modifier.height(14.dp))
+            LanguageCard(onLanguage)
+            Spacer(Modifier.height(14.dp))
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.padding(18.dp)) {
-                    Text("Tanılama", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    Text(stringResource(R.string.diagnostics), fontWeight = FontWeight.Bold, fontSize = 17.sp)
                     Spacer(Modifier.height(10.dp))
-                    Info("Eşleşmiş", state.pairedAirPodsName ?: "—")
+                    Info(stringResource(R.string.paired), state.pairedAirPodsName ?: "—")
                     Info("RSSI", state.rssi?.let { "$it dBm" } ?: "—")
-                    Info("Durum", state.message)
+                    Info(stringResource(R.string.status), state.message.ifBlank { stringResource(R.string.ready) })
                     state.rawManufacturerData?.let { raw ->
                         Spacer(Modifier.height(8.dp))
-                        Text("Ham Apple BLE", fontSize = 12.sp, color = Color.Gray)
+                        Text(stringResource(R.string.raw_apple_ble), fontSize = 12.sp, color = Color.Gray)
                         Text(raw, modifier = Modifier.fillMaxWidth().background(Color(0xFFF3F3F5), RoundedCornerShape(10.dp)).padding(10.dp), fontSize = 10.sp)
                     }
                 }
             }
             Spacer(Modifier.height(8.dp))
-            TextButton(onClick = onRefreshOverlayState) { Text("İzin durumunu yenile") }
-            Text(
-                "Bu sürüm root kullanmaz. Erişilemeyen Apple protokol özellikleri sessizce taklit edilmez; cihaz desteği test edilmeden buton açılmaz.",
-                color = Color.Gray, fontSize = 11.sp, textAlign = TextAlign.Center
-            )
+            TextButton(onClick = onRefreshOverlayState) { Text(stringResource(R.string.refresh_permissions)) }
+            Text(stringResource(R.string.rootless_note), color = Color.Gray, fontSize = 11.sp, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+@Composable
+private fun LanguageCard(onLanguage: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val appLocales = AppCompatDelegate.getApplicationLocales()
+    val currentTag = if (appLocales.isEmpty) "" else appLocales[0]?.language.orEmpty()
+    val current = languages.firstOrNull { it.tag == currentTag } ?: languages.first()
+
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Column {
+                Text(stringResource(R.string.language), fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                Text(if (current.tag.isBlank()) stringResource(R.string.language_system) else current.label, color = Color.Gray, fontSize = 12.sp)
+            }
+            Box {
+                OutlinedButton(onClick = { expanded = true }, shape = RoundedCornerShape(14.dp)) {
+                    Text(if (current.tag.isBlank()) stringResource(R.string.language_system) else current.label)
+                }
+                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    languages.forEach { lang ->
+                        DropdownMenuItem(
+                            text = { Text(if (lang.tag.isBlank()) stringResource(R.string.language_system) else lang.label) },
+                            onClick = {
+                                expanded = false
+                                onLanguage(lang.tag)
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -179,20 +227,20 @@ private fun AirPodsScreen(
 @Composable private fun AirPodsHero(state: AirPodsState) {
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(30.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
         Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(state.pairedAirPodsName ?: state.lastSeenName ?: "AirPods Pro 2", fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            Text(state.pairedAirPodsName ?: state.lastSeenName ?: stringResource(R.string.airpods_default), fontSize = 21.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(18.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                BatteryTile("Sol", state.leftBattery)
-                BatteryTile("Sağ", state.rightBattery)
-                BatteryTile("Kutu", state.caseBattery)
+                BatteryTile(stringResource(R.string.left), state.leftBattery)
+                BatteryTile(stringResource(R.string.right), state.rightBattery)
+                BatteryTile(stringResource(R.string.case_label), state.caseBattery)
             }
             Spacer(Modifier.height(14.dp))
             Text(when (state.phase) {
-                ConnectionPhase.NEARBY -> "Yakında"
-                ConnectionPhase.SCANNING -> "Aranıyor…"
-                ConnectionPhase.CONNECTED -> "Bağlı"
-                ConnectionPhase.ERROR -> "Kontrol gerekli"
-                else -> "Hazır"
+                ConnectionPhase.NEARBY -> stringResource(R.string.nearby)
+                ConnectionPhase.SCANNING -> stringResource(R.string.searching)
+                ConnectionPhase.CONNECTED -> stringResource(R.string.connected)
+                ConnectionPhase.ERROR -> stringResource(R.string.check_required)
+                else -> stringResource(R.string.ready)
             }, color = Color.Gray, fontSize = 13.sp)
         }
     }
@@ -214,6 +262,13 @@ private fun AirPodsScreen(
 }
 
 @Composable private fun StatusDot(phase: ConnectionPhase) {
-    val text = when (phase) { ConnectionPhase.NEARBY -> "YAKINDA"; ConnectionPhase.SCANNING -> "TARIYOR"; ConnectionPhase.ERROR -> "HATA"; else -> "HAZIR" }
-    Surface(shape = RoundedCornerShape(20.dp), color = Color(0xFFEDEDF0)) { Text(text, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+    val text = when (phase) {
+        ConnectionPhase.NEARBY -> stringResource(R.string.nearby_badge)
+        ConnectionPhase.SCANNING -> stringResource(R.string.scan_badge)
+        ConnectionPhase.ERROR -> stringResource(R.string.error_badge)
+        else -> stringResource(R.string.ready_badge)
+    }
+    Surface(shape = RoundedCornerShape(20.dp), color = Color(0xFFEDEDF0)) {
+        Text(text, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+    }
 }
