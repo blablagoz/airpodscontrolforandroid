@@ -110,7 +110,17 @@ class AirPodsMonitorService : Service() {
 
         startForeground(NOTIFICATION_ID, notification(getString(R.string.notification_monitoring)))
         scanner.start(lowPower = true) { newState ->
-            AirPodsRuntime.replace(newState.copy(monitorRunning = true))
+            AirPodsRuntime.update { current ->
+                newState.copy(
+                    monitorRunning = true,
+                    leftBattery = newState.leftBattery ?: current.leftBattery,
+                    rightBattery = newState.rightBattery ?: current.rightBattery,
+                    caseBattery = newState.caseBattery ?: current.caseBattery,
+                    leftCharging = newState.leftCharging ?: current.leftCharging,
+                    rightCharging = newState.rightCharging ?: current.rightCharging,
+                    caseCharging = newState.caseCharging ?: current.caseCharging
+                )
+            }
             getSystemService(NotificationManager::class.java)
                 .notify(NOTIFICATION_ID, notification(notificationText(AirPodsRuntime.state.value)))
             if (newState.phase == ConnectionPhase.NEARBY && android.provider.Settings.canDrawOverlays(this)) {
