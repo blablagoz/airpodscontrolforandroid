@@ -17,6 +17,11 @@ data class AirPodsState(
     val rightCharging: Boolean? = null,
     val caseCharging: Boolean? = null,
     val rawManufacturerData: String? = null,
+    val rawScanRecord: String? = null,
+    val appleFrameType: Int? = null,
+    val appleFrameLength: Int? = null,
+    val appleFrameLikelyAirPods: Boolean = false,
+    val rejectedAppleFrames: Int = 0,
     val lastSeenAt: Long? = null,
     val monitorRunning: Boolean = false,
     val aclConnected: Boolean = false,
@@ -26,4 +31,7 @@ data class AirPodsState(
     val discoveredUuids: String? = null,
     val overlayEnabled: Boolean = false,
     val message: String = ""
-)
+) {
+    val effectivelyConnected: Boolean
+        get() = aclConnected || a2dpConnected || headsetConnected
+}

@@ -82,7 +82,10 @@ class MainActivity : ComponentActivity() {
                             appendLine("A2DP: ${state.a2dpConnected}")
                             appendLine("HEADSET: ${state.headsetConnected}")
                             appendLine("UUIDs: ${state.discoveredUuids ?: "—"}")
-                            appendLine("Raw: ${state.rawManufacturerData ?: "—"}")
+                            appendLine("Effective connected: ${state.effectivelyConnected}")
+                            appendLine("Apple frame: likelyAirPods=${state.appleFrameLikelyAirPods} type=${state.appleFrameType?.let { "0x%02X".format(it) } ?: "—"} bytes=${state.appleFrameLength ?: "—"} rejected=${state.rejectedAppleFrames}")
+                            appendLine("Raw manufacturer: ${state.rawManufacturerData ?: "—"}")
+                            appendLine("Full ScanRecord: ${state.rawScanRecord ?: "—"}")
                             appendLine("Status: ${state.message}")
                         }
                         val cm = getSystemService(android.content.ClipboardManager::class.java)
@@ -183,6 +186,8 @@ private fun AirPodsScreen(
                     Info("ACL", if (state.aclConnected) "✓ ${state.aclTransport ?: ""}" else "—")
                     Info("A2DP", if (state.a2dpConnected) "✓" else "—")
                     Info("HEADSET", if (state.headsetConnected) "✓" else "—")
+                    Info("Connected", if (state.effectivelyConnected) "✓" else "—")
+                    Info("Apple frame", if (state.appleFrameLikelyAirPods) "AirPods candidate" else "Rejected (${state.rejectedAppleFrames})")
                     Info(stringResource(R.string.status), state.message.ifBlank { stringResource(R.string.ready) })
                     state.discoveredUuids?.let { uuidText ->
                         Spacer(Modifier.height(8.dp))
@@ -192,7 +197,12 @@ private fun AirPodsScreen(
                     state.rawManufacturerData?.let { raw ->
                         Spacer(Modifier.height(8.dp))
                         Text(stringResource(R.string.raw_apple_ble), fontSize = 12.sp, color = Color.Gray)
-                        Text(raw, modifier = Modifier.fillMaxWidth().background(Color(0xFFF3F3F5), RoundedCornerShape(10.dp)).padding(10.dp), fontSize = 10.sp)
+                        Text("type=${state.appleFrameType?.let { "0x%02X".format(it) } ?: "—"} · bytes=${state.appleFrameLength ?: "—"} · likely=${state.appleFrameLikelyAirPods}\n$raw", modifier = Modifier.fillMaxWidth().background(Color(0xFFF3F3F5), RoundedCornerShape(10.dp)).padding(10.dp), fontSize = 10.sp)
+                    }
+                    state.rawScanRecord?.let { raw ->
+                        Spacer(Modifier.height(8.dp))
+                        Text("Full ScanRecord", fontSize = 12.sp, color = Color.Gray)
+                        Text(raw, modifier = Modifier.fillMaxWidth().background(Color(0xFFF3F3F5), RoundedCornerShape(10.dp)).padding(10.dp), fontSize = 9.sp)
                     }
                 }
             }

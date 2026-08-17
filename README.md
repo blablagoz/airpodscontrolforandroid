@@ -1,41 +1,14 @@
-# AirPods Control for Samsung — rootless v0.2.1
+# AirPods Control for Samsung — rootless v0.4
 
-Özgün, rootsuz Android prototipi. Hedef cihaz: Samsung Galaxy S24 Ultra + AirPods Pro 2.
+v0.4 is a diagnostics/stability release for Samsung S24 Ultra + AirPods Pro 2.
 
-## v0.2.1 neler yapar?
-- Apple manufacturer BLE (0x004C) AirPods proximity paketlerini filtreler.
-- Sol/sağ/kutu pil değerlerini konservatif parser ile gösterir; tanımadığı pakette değer uydurmaz.
-- Foreground service ile ekran kapansa da izlemeyi sürdürebilir.
-- SYSTEM_ALERT_WINDOW izni verilirse AirPods yakına geldiğinde 4.5 saniyelik üst popup gösterir.
-- Telefona eşleşmiş AirPods'u bulur.
-- Bluetooth ACL bağlanma/kopma olaylarını ayrıca takip eder; BLE taraması ile bağlantı durumunu birbirinden ayırır.
-- ANC/Transparency gibi AACP kontrollerini, Android üzerinde güvenilir kanal uygulanmadan sahte biçimde aktif göstermez.
-- Ham BLE paketini tanılama amacıyla gösterir.
+Changes:
+- Rejects generic Apple BLE frames such as `12 02 00 01`; they no longer trigger an AirPods popup.
+- A result is promoted to an AirPods candidate only when the Apple manufacturer frame has the expected proximity structure.
+- Captures the complete BLE ScanRecord plus Apple manufacturer bytes for diagnostics.
+- Shows Apple frame type, byte length, candidate/rejected status, and rejected-frame count.
+- Uses A2DP/HEADSET/ACL together as the effective Bluetooth connection state.
+- Scanner updates preserve profile/UUID state instead of overwriting it.
+- Existing AirPods app icon and 7 languages remain: Turkish, English, German, French, Spanish, Italian, Hindi.
 
-## Neden LibrePods'un kopyası değil?
-LibrePods ve açık protokol araştırmaları mimari/protokol referansı olarak incelenmiştir. Bu repo onların kodunu içe aktarmayan, Samsung/One UI odaklı ayrı bir uygulama iskeletidir. LibrePods GPL-3.0 lisanslıdır; bu prototipte onların kaynak dosyaları kopyalanmamıştır.
-
-## Tabletten APK üretme
-1. Bu klasörün içeriğini GitHub repository'sine yükle.
-2. GitHub > Actions > `AirPods Control - APK Build`.
-3. `Run workflow`.
-4. Build yeşil olduğunda `AirPodsControlRootless-debug-apk` artifact'ını indir.
-5. ZIP içindeki `app-debug.apk` dosyasını S24 Ultra'ya kur.
-
-## İlk test
-1. AirPods Pro 2'yi Samsung Bluetooth ayarlarından eşleştir.
-2. Uygulamayı aç, Bluetooth ve bildirim izinlerini ver.
-3. `AirPods monitörünü başlat`.
-4. `Apple tarzı popup iznini aç` seçeneğinden diğer uygulamaların üzerinde gösterme iznini ver.
-5. AirPods kutusunu kapatıp tekrar aç.
-6. Pil değerleri veya `Ham Apple BLE` satırı görünürse tarama çalışıyor.
-7. `Tanılama verisini kopyala` ile cihaz/Android sürümü ve gerçek BLE paketini tek dokunuşla panoya al; sonraki protokol testinde bu veri kullanılabilir.
-
-## Teknik sınır
-Bazı Android sürümleri/üreticileri Apple'ın L2CAP davranışı ile Android Bluetooth stack'i arasındaki uyumsuzluk nedeniyle AACP bağlantısını rootsuz açamayabilir. Bu nedenle v0.2.1, BLE/popup/pil işlevlerini gelişmiş AACP kontrol katmanından ayırır.
-
-
-## v0.2.1
-- Rootless BLE scan now filters Apple frames inside the app instead of at Android stack level.
-- New AirPods-style launcher icon.
-- Languages: Turkish, English, German, French, Spanish, Italian, Hindi; selectable in-app.
+This build does not fake unsupported Apple controls. ANC/AACP work remains separated from BLE monitoring.

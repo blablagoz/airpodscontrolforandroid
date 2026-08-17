@@ -3,13 +3,15 @@ package com.avni.airpodscontrol.bluetooth
 /**
  * Conservative parser for Apple manufacturer BLE frames.
  *
- * We intentionally only expose battery values when the frame resembles the
- * AirPods proximity layout and every nibble passes sanity checks. Unknown
- * firmware variants are kept as raw hex instead of returning invented values.
+ * v0.4 deliberately rejects short Apple frames such as 12 02 00 01. Those
+ * frames are valid Apple advertisements but are not an AirPods proximity
+ * battery frame. Unknown firmware layouts remain visible in diagnostics.
  */
 object AirPodsPacketParser {
     data class Parsed(
         val isLikelyAirPods: Boolean,
+        val frameType: Int?,
+        val declaredLength: Int?,
         val leftBattery: Int? = null,
         val rightBattery: Int? = null,
         val caseBattery: Int? = null,
@@ -20,24 +22,37 @@ object AirPodsPacketParser {
     )
 
     fun parse(data: ByteArray): Parsed {
-        val raw = data.joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }
+        val raw = data.toHex()
         val type = data.getOrNull(0)?.u8()
         val length = data.getOrNull(1)?.u8()
-        val likely = type == 0x07 && (length == 0x19 || data.size >= 20)
-        if (!likely || data.size < 8) return Parsed(false, rawHex = raw)
 
-        // Apple proximity frames encode battery as 0..10 nibbles (10% steps),
-        // with 0xF meaning not available. Exact left/right orientation can vary
-        // with frame status; until AACP confirms it we keep the conservative map.
-        val podByte = data[6].u8()
-        val caseByte = data[7].u8()
-        val a = nibbleToPercent((podByte ushr 4) and 0x0F)
-        val b = nibbleToPercent(podByte and 0x0F)
-        val case = nibbleToPercent(caseByte and 0x0F)
+        // AirPods proximity advertisements observed in the Apple manufacturer
+        // namespace use type 0x07 and are much longer than generic 4-byte Apple
+        // frames. Require both the type and a sane payload length.
+        val structuralMatch = type == AIRPODS_PROXIMITY_TYPE && data.size >= MIN_PROXIMITY_BYTES
+        val lengthMatch = length == null || length >= 0x10
+        val likely = structuralMatch && lengthMatch
+        if (!likely) {
+            return Parsed(
+                isLikelyAirPods = false,
+                frameType = type,
+                declaredLength = length,
+                rawHex = raw
+            )
+        }
 
-        // Charging flags vary between generations/firmware. Do not guess.
+        // Keep the old conservative nibble mapping until we capture a verified
+        // Pro 2 frame from this exact Samsung/firmware combination.
+        val podByte = data.getOrNull(6)?.u8()
+        val caseByte = data.getOrNull(7)?.u8()
+        val a = podByte?.let { nibbleToPercent((it ushr 4) and 0x0F) }
+        val b = podByte?.let { nibbleToPercent(it and 0x0F) }
+        val case = caseByte?.let { nibbleToPercent(it and 0x0F) }
+
         return Parsed(
             isLikelyAirPods = true,
+            frameType = type,
+            declaredLength = length,
             leftBattery = a,
             rightBattery = b,
             caseBattery = case,
@@ -45,10 +60,15 @@ object AirPodsPacketParser {
         )
     }
 
+    fun ByteArray.toHex(): String = joinToString(" ") { "%02X".format(it.toInt() and 0xFF) }
+
     private fun Byte.u8() = toInt() and 0xFF
     private fun nibbleToPercent(value: Int): Int? = when (value) {
         0x0F -> null
         in 0..10 -> value * 10
         else -> null
     }
+
+    private const val AIRPODS_PROXIMITY_TYPE = 0x07
+    private const val MIN_PROXIMITY_BYTES = 18
 }
