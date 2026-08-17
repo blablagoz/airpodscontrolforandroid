@@ -78,6 +78,10 @@ class MainActivity : ComponentActivity() {
                             appendLine("Last seen: ${state.lastSeenName} ${state.lastSeenAddress}")
                             appendLine("RSSI: ${state.rssi}")
                             appendLine("L/R/Case: ${state.leftBattery}/${state.rightBattery}/${state.caseBattery}")
+                            appendLine("ACL: ${state.aclConnected} / transport=${state.aclTransport ?: "—"}")
+                            appendLine("A2DP: ${state.a2dpConnected}")
+                            appendLine("HEADSET: ${state.headsetConnected}")
+                            appendLine("UUIDs: ${state.discoveredUuids ?: "—"}")
                             appendLine("Raw: ${state.rawManufacturerData ?: "—"}")
                             appendLine("Status: ${state.message}")
                         }
@@ -176,7 +180,15 @@ private fun AirPodsScreen(
                     Spacer(Modifier.height(10.dp))
                     Info(stringResource(R.string.paired), state.pairedAirPodsName ?: "—")
                     Info("RSSI", state.rssi?.let { "$it dBm" } ?: "—")
+                    Info("ACL", if (state.aclConnected) "✓ ${state.aclTransport ?: ""}" else "—")
+                    Info("A2DP", if (state.a2dpConnected) "✓" else "—")
+                    Info("HEADSET", if (state.headsetConnected) "✓" else "—")
                     Info(stringResource(R.string.status), state.message.ifBlank { stringResource(R.string.ready) })
+                    state.discoveredUuids?.let { uuidText ->
+                        Spacer(Modifier.height(8.dp))
+                        Text("Bluetooth UUIDs", fontSize = 12.sp, color = Color.Gray)
+                        Text(uuidText, modifier = Modifier.fillMaxWidth().background(Color(0xFFF3F3F5), RoundedCornerShape(10.dp)).padding(10.dp), fontSize = 10.sp)
+                    }
                     state.rawManufacturerData?.let { raw ->
                         Spacer(Modifier.height(8.dp))
                         Text(stringResource(R.string.raw_apple_ble), fontSize = 12.sp, color = Color.Gray)

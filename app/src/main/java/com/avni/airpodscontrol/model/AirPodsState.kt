@@ -19,6 +19,11 @@ data class AirPodsState(
     val rawManufacturerData: String? = null,
     val lastSeenAt: Long? = null,
     val monitorRunning: Boolean = false,
+    val aclConnected: Boolean = false,
+    val aclTransport: String? = null,
+    val a2dpConnected: Boolean = false,
+    val headsetConnected: Boolean = false,
+    val discoveredUuids: String? = null,
     val overlayEnabled: Boolean = false,
     val message: String = ""
 )

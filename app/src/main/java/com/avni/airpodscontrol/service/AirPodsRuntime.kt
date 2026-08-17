@@ -15,7 +15,12 @@ object AirPodsRuntime {
     fun replace(newState: AirPodsState) {
         val old = _state.value
         _state.value = newState.copy(
-            overlayEnabled = old.overlayEnabled
+            overlayEnabled = old.overlayEnabled,
+            aclConnected = old.aclConnected,
+            aclTransport = old.aclTransport,
+            a2dpConnected = old.a2dpConnected,
+            headsetConnected = old.headsetConnected,
+            discoveredUuids = old.discoveredUuids
         )
     }
 }
