@@ -9,22 +9,32 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.content.ContextCompat
 import com.avni.airpodscontrol.R
 import com.avni.airpodscontrol.model.AirPodsState
 import com.avni.airpodscontrol.model.ConnectionPhase
 
 /**
- * Rootless BLE monitor for Samsung/Android.
+ * Rootless BLE monitor.
  *
- * v0.4 scans broadly but only promotes a result to NEARBY when the Apple
- * manufacturer frame passes AirPods proximity validation. Generic Apple frames
- * are retained solely as diagnostics and never trigger the popup.
+ * Important: we intentionally do NOT use a manufacturer-data ScanFilter here.
+ * Some Samsung/One UI + AirPods Pro 2 firmware combinations do not deliver the
+ * expected callback when the filter is applied at Android's Bluetooth stack.
+ * We scan broadly, then inspect Apple 0x004C manufacturer frames in-process.
+ *
+ * v0.5: added a freshness window so that unrelated Apple BLE frames (e.g.
+ * 0x12 Nearby Action packets from other Apple devices) cannot overwrite a
+ * recently-seen genuine AirPods proximity (0x07) frame.
  */
 class AirPodsScanner(private val context: Context) {
     private val manager = context.getSystemService(BluetoothManager::class.java)
     private val adapter: BluetoothAdapter? get() = manager?.adapter
     private var callback: ScanCallback? = null
+
+    private var lastValidState: AirPodsState? = null
+    private var lastValidSeenAt: Long = 0L
+    private val validFrameFreshnessMs = 15_000L
 
     fun hasPermissions(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
@@ -56,24 +66,28 @@ class AirPodsScanner(private val context: Context) {
             return
         }
 
-        var rejectedAppleFrames = 0
         var lastAppleRaw: String? = null
-        var lastScanRaw: String? = null
-
         val cb = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val record = result.scanRecord ?: return
-                val scanRaw = record.bytes?.let { AirPodsPacketParser.run { it.toHex() } }
                 val appleData = record.getManufacturerSpecificData(APPLE_COMPANY_ID) ?: return
                 val parsed = AirPodsPacketParser.parse(appleData)
-                lastAppleRaw = parsed.rawHex
-                lastScanRaw = scanRaw
+                val raw = parsed.rawHex
+                lastAppleRaw = raw
 
                 val deviceName = runCatching { result.device.name }.getOrNull() ?: record.deviceName
                 val deviceAddress = runCatching { result.device.address }.getOrNull()
+                val now = System.currentTimeMillis()
 
                 if (!parsed.isLikelyAirPods) {
-                    rejectedAppleFrames += 1
+                    // A genuine AirPods (0x07) frame was seen recently: do not let
+                    // an unrelated Apple frame (e.g. 0x12 Nearby Action from some
+                    // other nearby Apple device) overwrite that state.
+                    val stillFresh = (now - lastValidSeenAt) < validFrameFreshnessMs
+                    if (stillFresh && lastValidState != null) {
+                        return
+                    }
+
                     onState(
                         AirPodsState(
                             phase = ConnectionPhase.SCANNING,
@@ -83,46 +97,37 @@ class AirPodsScanner(private val context: Context) {
                             lastSeenName = deviceName,
                             lastSeenAddress = deviceAddress,
                             rssi = result.rssi,
-                            rawManufacturerData = parsed.rawHex,
-                            rawScanRecord = scanRaw,
-                            appleFrameType = parsed.frameType,
-                            appleFrameLength = appleData.size,
-                            appleFrameLikelyAirPods = false,
-                            rejectedAppleFrames = rejectedAppleFrames,
-                            lastSeenAt = System.currentTimeMillis(),
+                            rawManufacturerData = raw,
+                            lastSeenAt = now,
                             monitorRunning = true,
-                            message = context.getString(R.string.msg_non_airpods_apple_frame)
+                            message = context.getString(R.string.msg_apple_frame_seen)
                         )
                     )
                     return
                 }
 
-                onState(
-                    AirPodsState(
-                        phase = ConnectionPhase.NEARBY,
-                        bluetoothEnabled = true,
-                        pairedAirPodsName = paired?.first,
-                        pairedAirPodsAddress = paired?.second,
-                        lastSeenName = deviceName,
-                        lastSeenAddress = deviceAddress,
-                        rssi = result.rssi,
-                        leftBattery = parsed.leftBattery,
-                        rightBattery = parsed.rightBattery,
-                        caseBattery = parsed.caseBattery,
-                        leftCharging = parsed.leftCharging,
-                        rightCharging = parsed.rightCharging,
-                        caseCharging = parsed.caseCharging,
-                        rawManufacturerData = parsed.rawHex,
-                        rawScanRecord = scanRaw,
-                        appleFrameType = parsed.frameType,
-                        appleFrameLength = appleData.size,
-                        appleFrameLikelyAirPods = true,
-                        rejectedAppleFrames = rejectedAppleFrames,
-                        lastSeenAt = System.currentTimeMillis(),
-                        monitorRunning = true,
-                        message = context.getString(R.string.msg_airpods_candidate)
-                    )
+                val state = AirPodsState(
+                    phase = ConnectionPhase.NEARBY,
+                    bluetoothEnabled = true,
+                    pairedAirPodsName = paired?.first,
+                    pairedAirPodsAddress = paired?.second,
+                    lastSeenName = deviceName,
+                    lastSeenAddress = deviceAddress,
+                    rssi = result.rssi,
+                    leftBattery = parsed.leftBattery,
+                    rightBattery = parsed.rightBattery,
+                    caseBattery = parsed.caseBattery,
+                    leftCharging = parsed.leftCharging,
+                    rightCharging = parsed.rightCharging,
+                    caseCharging = parsed.caseCharging,
+                    rawManufacturerData = raw,
+                    lastSeenAt = now,
+                    monitorRunning = true,
+                    message = context.getString(R.string.msg_airpods_nearby)
                 )
+                lastValidState = state
+                lastValidSeenAt = now
+                onState(state)
             }
 
             override fun onScanFailed(errorCode: Int) {
@@ -133,8 +138,6 @@ class AirPodsScanner(private val context: Context) {
                         pairedAirPodsName = paired?.first,
                         pairedAirPodsAddress = paired?.second,
                         rawManufacturerData = lastAppleRaw,
-                        rawScanRecord = lastScanRaw,
-                        rejectedAppleFrames = rejectedAppleFrames,
                         monitorRunning = false,
                         message = scanErrorText(errorCode)
                     )
@@ -143,10 +146,19 @@ class AirPodsScanner(private val context: Context) {
         }
         callback = cb
 
-        val settings = ScanSettings.Builder()
+        val settingsBuilder = ScanSettings.Builder()
             .setScanMode(if (lowPower) ScanSettings.SCAN_MODE_BALANCED else ScanSettings.SCAN_MODE_LOW_LATENCY)
             .setReportDelay(0)
-            .build()
+
+        // Extended advertising / all-PHY scanning helps catch AirPods firmware
+        // variants that some OEM Bluetooth stacks otherwise drop.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            runCatching {
+                settingsBuilder.setLegacy(false)
+                settingsBuilder.setPhy(ScanSettings.PHY_LE_ALL_SUPPORTED)
+            }
+        }
+        val settings = settingsBuilder.build()
 
         onState(
             AirPodsState(
@@ -158,6 +170,7 @@ class AirPodsScanner(private val context: Context) {
                 message = context.getString(R.string.msg_searching)
             )
         )
+        // No ScanFilter: filtering happens in this class after callbacks arrive.
         ble.startScan(null, settings, cb)
     }
 
@@ -166,6 +179,8 @@ class AirPodsScanner(private val context: Context) {
         val cb = callback ?: return
         if (hasPermissions()) runCatching { adapter?.bluetoothLeScanner?.stopScan(cb) }
         callback = null
+        lastValidState = null
+        lastValidSeenAt = 0L
     }
 
     private fun scanErrorText(code: Int) = when (code) {
